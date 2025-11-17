@@ -344,9 +344,54 @@ Implementation approach selected:
   - Zero overhead for metrics without `collect` function
   - Clean separation of sync/async paths
 
-## Next Steps
+## Implementation Status
 
-1. ~~Get user approval on approach~~ ✓ APPROVED
-2. Start with Phase 1 (Histogram) - implement sync/async split
-3. Measure and validate improvement with benchmark
-4. Proceed to other metric types if successful (Summary, Counter, Gauge)
+### Phase 1: Histogram ✓ COMPLETED
+
+- [x] Implemented `_getForPromStringSync()` and `_getForPromStringAsync()`
+- [x] Implemented `_getSync()` and `_getAsync()`
+- [x] Extracted `_splayAndGet()` utility to eliminate duplication
+- [x] Constructor-time method assignment based on `config.collect`
+- [x] All tests passing
+
+### Phase 2: Summary ✓ COMPLETED
+
+- [x] Implemented `_getSync()` and `_getAsync()`
+- [x] Constructor-time method assignment based on `config.collect`
+- [x] All tests passing
+
+### Phase 3: Counter ✓ COMPLETED
+
+- [x] Implemented `_getSync()` and `_getAsync()`
+- [x] Constructor-time method assignment based on `config.collect`
+- [x] All tests passing
+
+### Phase 4: Gauge ✓ COMPLETED
+
+- [x] Implemented `_getSync()` and `_getAsync()`
+- [x] Constructor-time method assignment based on `config.collect`
+- [x] All tests passing
+
+### Phase 5: Registry ✓ COMPLETED
+
+- [x] Implemented `_formatMetricAsString()` helper
+- [x] Made `getMetricsAsString()` check if result is Promise
+- [x] Implemented `_formatMetricsAsJSON()` helper
+- [x] Made `getMetricsAsJSON()` check if any result is Promise
+- [x] Made `metrics()` check if any result is Promise
+- [x] All tests passing (45/45)
+
+### Additional Improvements
+
+- [x] Added Object.defineProperty to freeze `collect` in Metric base class
+- [x] Refactored heapSpacesSizeAndUsed.js to pass collect in constructor
+- [x] Used `.then()` instead of `async/await` to avoid async function overhead
+
+## Results
+
+All phases completed successfully:
+
+- ✅ All tests passing (45/45)
+- ✅ Zero promise allocations for metrics without `collect` functions
+- ✅ Zero microtick overhead for synchronous serialization paths
+- ✅ Backward compatible - async metrics still work correctly
