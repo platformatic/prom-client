@@ -173,9 +173,141 @@ async getForPromStringAsync() {
 
 ### Phase 5: Registry
 
-1. Check if `registry.metrics()` and `registry.getMetricsAsJSON()` need updates
-2. These methods call `metric.get()` - should still work with both Promise and non-Promise
-3. If needed, handle both return types
+Optimize Registry methods to avoid allocating Promises when all metrics are synchronous.
+
+#### Current Problems:
+
+1. **`getMetricsAsString(metric)`** (line 37-94)
+   - Always declared as `async`
+   - Always uses `await` even when `metric.get()` returns non-Promise
+   - Allocates Promise wrapper unnecessarily
+
+2. **`metrics()`** (line 96-115)
+   - Always declared as `async`
+   - Always uses `Promise.all()` even when all metrics are synchronous
+   - Allocates array of Promises and Promise.all wrapper unnecessarily
+
+3. **`getMetricsAsJSON()`** (line 133-164)
+   - Always declared as `async`
+   - Always uses `Promise.all()` even when all metrics are synchronous
+   - Same issue as `metrics()`
+
+#### Solution:
+
+For each method, check if any result is a Promise. If not, return synchronously.
+
+**`getMetricsAsString(metric)` optimization:**
+
+```javascript
+getMetricsAsString(metrics) {
+  const getMethod = typeof metrics.getForPromString === 'function'
+    ? metrics.getForPromString()
+    : metrics.get();
+
+  if (getMethod instanceof Promise) {
+    return getMethod.then(metric => this._formatMetricAsString(metric));
+  }
+  return this._formatMetricAsString(getMethod);
+}
+
+_formatMetricAsString(metric) {
+  // ... existing formatting logic (lines 43-93) ...
+}
+```
+
+**`metrics()` optimization:**
+
+```javascript
+metrics() {
+  const isOpenMetrics = this.contentType === Registry.OPENMETRICS_CONTENT_TYPE;
+  const metricsArray = this.getMetricsAsArray();
+
+  // Collect all metric strings
+  const results = new Array(metricsArray.length);
+  let hasPromise = false;
+
+  for (let i = 0; i < metricsArray.length; i++) {
+    const metric = metricsArray[i];
+    if (isOpenMetrics && metric.type === 'counter') {
+      metric.name = standardizeCounterName(metric.name);
+    }
+    results[i] = this.getMetricsAsString(metric);
+    if (results[i] instanceof Promise) {
+      hasPromise = true;
+    }
+  }
+
+  if (hasPromise) {
+    return Promise.all(results).then(resolves =>
+      isOpenMetrics
+        ? `${resolves.join('\n')}\n# EOF\n`
+        : `${resolves.join('\n\n')}\n`
+    );
+  }
+
+  return isOpenMetrics
+    ? `${results.join('\n')}\n# EOF\n`
+    : `${results.join('\n\n')}\n`;
+}
+```
+
+**`getMetricsAsJSON()` optimization:**
+
+```javascript
+getMetricsAsJSON() {
+  const results = [];
+  let hasPromise = false;
+
+  for (const metric of this._metrics.values()) {
+    const result = metric.get();
+    results.push(result);
+    if (result instanceof Promise) {
+      hasPromise = true;
+    }
+  }
+
+  if (hasPromise) {
+    return Promise.all(results).then(resolves =>
+      this._formatMetricsAsJSON(resolves)
+    );
+  }
+
+  return this._formatMetricsAsJSON(results);
+}
+
+_formatMetricsAsJSON(resolves) {
+  let defaultLabelNames = Object.keys(this._defaultLabels);
+  if (defaultLabelNames.length === 0) {
+    defaultLabelNames = undefined;
+  }
+
+  const metrics = [];
+  for (const item of resolves) {
+    // ... existing formatting logic (lines 149-160) ...
+  }
+
+  return metrics;
+}
+```
+
+#### Implementation Steps:
+
+1. Extract `_formatMetricAsString()` helper from `getMetricsAsString()`
+2. Make `getMetricsAsString()` check if result is Promise
+3. Extract `_formatMetricsAsJSON()` helper from `getMetricsAsJSON()`
+4. Make `getMetricsAsJSON()` check if any result is Promise
+5. Make `metrics()` check if any result is Promise
+6. Test with metrics that have `collect` and without
+7. Benchmark to verify no Promise allocation when all metrics are sync
+
+#### Expected Performance Impact:
+
+When all metrics are synchronous (no `collect` functions):
+
+- Zero Promise allocations in Registry serialization
+- No microtick overhead from async functions
+- Direct synchronous execution path
+- Estimated 10-15% improvement in serialization benchmark
 
 ## Testing Strategy
 
