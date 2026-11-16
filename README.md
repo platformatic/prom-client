@@ -506,6 +506,10 @@ If you need to get a reference to a previously registered metric, you can use
 You can remove all metrics by calling `register.clear()`. You can also remove a
 single metric by calling `register.removeSingleMetric(*name of metric*)`.
 
+Event loop monitoring timers and native histograms stop once all of the collector's
+metrics have been removed from every registry. Metrics shared with another registry,
+including through `Registry.merge()`, continue monitoring until removed there too.
+
 #### Resetting metrics
 
 If you need to reset all metrics, you can use `register.resetMetrics()`. The

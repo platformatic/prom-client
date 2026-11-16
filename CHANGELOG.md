@@ -30,6 +30,8 @@ project adheres to [Semantic Versioning](http://semver.org/).
     deltas between reads.
   - JSON exports apply registry default labels to copies of samples, so reading a metric in one
     registry cannot change its labels in another registry.
+- Stop event loop monitoring timers and disable native histograms when their metrics are removed
+  from all registries, preventing leaks when clearing and reinitializing default metrics.
 - Improve types for no labels
 - perf: Faster stats gathering with lower memory overhead
 - Simplified number format logic
