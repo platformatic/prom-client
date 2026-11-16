@@ -94,4 +94,61 @@ describeEach([
 		assert.strictEqual(metrics[7].type, 'gauge');
 		assert.strictEqual(metrics[7].name, 'nodejs_eventloop_lag_p99_seconds');
 	});
+
+	it('should not reset the delay statistics when read', async () => {
+		eventLoopLag(undefined, { eventLoopMonitoringPrecision: 1 });
+		// The histograms only start recording after their first tick.
+		await wait(10);
+		block(50);
+		await wait(20);
+
+		// Reads happen back to back, so no new sample can land in between.
+		const first = statsFrom(await register.getMetricsAsJSON());
+		const second = statsFrom(await register.getMetricsAsJSON());
+
+		assert.ok(first.nodejs_eventloop_lag_max_seconds > 0.02);
+		assert.deepStrictEqual(second, first);
+	});
+
+	it('should drop old samples after the monitoring window, not on read', async () => {
+		eventLoopLag(undefined, {
+			eventLoopMonitoringPrecision: 1,
+			eventLoopMonitoringWindow: 50,
+		});
+		await wait(10);
+		block(200);
+		await wait(5);
+
+		const during = statsFrom(await register.getMetricsAsJSON());
+		assert.ok(during.nodejs_eventloop_lag_max_seconds > 0.1);
+
+		// Both histograms have been reset at least once since the block.
+		await wait(300);
+		const after = statsFrom(await register.getMetricsAsJSON());
+		assert.ok(after.nodejs_eventloop_lag_max_seconds < 0.1);
+	});
+
+	it('should validate eventLoopMonitoringWindow', () => {
+		for (const eventLoopMonitoringWindow of [0, -1, NaN, '10', 2 ** 31]) {
+			assert.throws(
+				() => eventLoopLag(undefined, { eventLoopMonitoringWindow }),
+				RangeError,
+			);
+		}
+	});
 });
+
+function block(ms) {
+	const end = Date.now() + ms;
+	while (Date.now() < end);
+}
+
+function statsFrom(metrics) {
+	const stats = {};
+	for (const metric of metrics) {
+		if (metric.name !== 'nodejs_eventloop_lag_seconds') {
+			stats[metric.name] = metric.values[0].value;
+		}
+	}
+	return stats;
+}

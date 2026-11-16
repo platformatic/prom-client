@@ -774,6 +774,13 @@ export interface DefaultMetricsCollectorConfiguration<
 	prefix?: string;
 	gcDurationBuckets?: number[];
 	eventLoopMonitoringPrecision?: number;
+	/**
+	 * Length in milliseconds of the window the event loop delay statistics
+	 * (min, max, mean, stddev, percentiles) are computed over. The reported
+	 * values cover between one and two windows of the most recent samples and
+	 * are never reset by reading them. Default: 60000.
+	 */
+	eventLoopMonitoringWindow?: number;
 	labels?: object;
 }
 

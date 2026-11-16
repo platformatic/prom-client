@@ -16,6 +16,18 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Reading metrics is now idempotent and never resets collected values:
+  - The event loop delay statistics (`nodejs_eventloop_lag_{min,max,mean,stddev,p50,p90,p99}_seconds`)
+    were reset on every collection. They now cover a sliding window controlled by the new
+    `eventLoopMonitoringWindow` option (default: 60s).
+  - Summaries no longer compress their t-digest on read, which made consecutive reads return
+    different quantiles.
+  - Summaries with `pruneAgedBuckets` now expire `count` and `sum` based only on time, not on
+    whether a read happened while the window was empty.
+  - OpenMetrics registries no longer rename `_total` counters when collecting, which changed the
+    output of other registries sharing the counter and of `getSingleMetricAsString()`.
+  - `process_cpu_*_seconds_total` are computed from absolute CPU usage instead of accumulating
+    deltas between reads.
 - Improve types for no labels
 - perf: Faster stats gathering with lower memory overhead
 - Simplified number format logic

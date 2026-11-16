@@ -893,6 +893,51 @@ summary_count 0
 			});
 		});
 
+		it('should not change counters or other registries when collecting', async () => {
+			const other = new Registry(
+				regType === Registry.OPENMETRICS_CONTENT_TYPE
+					? Registry.PROMETHEUS_CONTENT_TYPE
+					: Registry.OPENMETRICS_CONTENT_TYPE,
+			);
+			const counter = new Counter({
+				name: 'requests_total',
+				help: 'Requests',
+				registers: [register, other],
+			});
+			counter.inc();
+
+			const before = {
+				name: counter.name,
+				json: await register.getMetricsAsJSON(),
+				single: await register.getSingleMetricAsString('requests_total'),
+				metrics: await register.metrics(),
+				other: await other.metrics(),
+			};
+			for (let i = 0; i < 3; i++) {
+				await register.metrics();
+				await other.metrics();
+			}
+
+			assert.strictEqual(counter.name, before.name);
+			assert.deepStrictEqual(await register.getMetricsAsJSON(), before.json);
+			assert.strictEqual(
+				await register.getSingleMetricAsString('requests_total'),
+				before.single,
+			);
+			assert.strictEqual(await register.metrics(), before.metrics);
+			assert.strictEqual(await other.metrics(), before.other);
+
+			const [help, type, value] = before.single.split('\n');
+			if (regType === Registry.OPENMETRICS_CONTENT_TYPE) {
+				assert.strictEqual(help, '# HELP requests Requests');
+				assert.strictEqual(type, '# TYPE requests counter');
+			} else {
+				assert.strictEqual(help, '# HELP requests_total Requests');
+				assert.strictEqual(type, '# TYPE requests_total counter');
+			}
+			assert.strictEqual(value, 'requests_total 1');
+		});
+
 		function getMetric(name) {
 			name = name || 'test_metric';
 			return {
