@@ -531,6 +531,25 @@ describeEach([
 			assert.strictEqual((await registryInstance.getMetricsAsJSON()).length, 1);
 		});
 	});
+	describe('reads', () => {
+		it('should return the same values when read repeatedly', async () => {
+			const localInstance = new Summary({
+				name: 'summary_test',
+				help: 'test',
+				compressCount: Infinity,
+				registers: [],
+			});
+			for (let i = 0; i < 20000; i++) {
+				localInstance.observe(Math.sin(i) * 1000 + (i % 997));
+			}
+
+			const first = await localInstance.get();
+			for (let i = 0; i < 5; i++) {
+				assert.deepStrictEqual(await localInstance.get(), first);
+			}
+		});
+	});
+
 	describe('sliding window', () => {
 		let clock;
 		beforeEach(() => {
@@ -591,6 +610,27 @@ describeEach([
 
 			const { values } = await localInstance.get();
 			assert.strictEqual(values.length, 0);
+		});
+
+		it('should expire count and sum of an emptied window even if it was never read', async () => {
+			const localInstance = new Summary({
+				name: 'summary_test',
+				help: 'test',
+				maxAgeSeconds: 5,
+				ageBuckets: 5,
+				pruneAgedBuckets: true,
+			});
+
+			localInstance.observe(100);
+			timers.advanceTimersByTime(6000);
+			localInstance.observe(50);
+
+			const { values } = await localInstance.get();
+			assert.strictEqual(values[0].value, 50);
+			assert.strictEqual(values[7].metricName, 'summary_test_sum');
+			assert.strictEqual(values[7].value, 50);
+			assert.strictEqual(values[8].metricName, 'summary_test_count');
+			assert.strictEqual(values[8].value, 1);
 		});
 
 		it('should not slide when maxAgeSeconds and ageBuckets are not configured', async () => {

@@ -893,6 +893,85 @@ summary_count 0
 			});
 		});
 
+		for (const Metric of [Counter, Gauge]) {
+			it(`should keep default labels local to each registry for ${Metric.name}`, async () => {
+				const other = new Registry(regType);
+				register.setDefaultLabels({ reader: 'first', region: 'default' });
+				other.setDefaultLabels({ reader: 'second' });
+				const metric = new Metric({
+					name: 'shared_metric',
+					help: 'Shared metric',
+					labelNames: ['region'],
+					registers: [register, other],
+				});
+				metric.inc({ region: 'explicit' }, 2);
+
+				const firstRead = await register.getMetricsAsJSON();
+				const secondRead = await other.getMetricsAsJSON();
+				assert.deepStrictEqual(firstRead[0].values[0].labels, {
+					region: 'explicit',
+					reader: 'first',
+				});
+				assert.deepStrictEqual(secondRead[0].values[0].labels, {
+					region: 'explicit',
+					reader: 'second',
+				});
+				assert.deepStrictEqual((await metric.get()).values[0].labels, {
+					region: 'explicit',
+				});
+
+				register.setDefaultLabels({ reader: 'updated' });
+				const updatedRead = await register.getMetricsAsJSON();
+				assert.strictEqual(updatedRead[0].values[0].labels.reader, 'updated');
+				assert.strictEqual(firstRead[0].values[0].labels.reader, 'first');
+			});
+		}
+
+		it('should not change counters or other registries when collecting', async () => {
+			const other = new Registry(
+				regType === Registry.OPENMETRICS_CONTENT_TYPE
+					? Registry.PROMETHEUS_CONTENT_TYPE
+					: Registry.OPENMETRICS_CONTENT_TYPE,
+			);
+			const counter = new Counter({
+				name: 'requests_total',
+				help: 'Requests',
+				registers: [register, other],
+			});
+			counter.inc();
+
+			const before = {
+				name: counter.name,
+				json: await register.getMetricsAsJSON(),
+				single: await register.getSingleMetricAsString('requests_total'),
+				metrics: await register.metrics(),
+				other: await other.metrics(),
+			};
+			for (let i = 0; i < 3; i++) {
+				await register.metrics();
+				await other.metrics();
+			}
+
+			assert.strictEqual(counter.name, before.name);
+			assert.deepStrictEqual(await register.getMetricsAsJSON(), before.json);
+			assert.strictEqual(
+				await register.getSingleMetricAsString('requests_total'),
+				before.single,
+			);
+			assert.strictEqual(await register.metrics(), before.metrics);
+			assert.strictEqual(await other.metrics(), before.other);
+
+			const [help, type, value] = before.single.split('\n');
+			if (regType === Registry.OPENMETRICS_CONTENT_TYPE) {
+				assert.strictEqual(help, '# HELP requests Requests');
+				assert.strictEqual(type, '# TYPE requests counter');
+			} else {
+				assert.strictEqual(help, '# HELP requests_total Requests');
+				assert.strictEqual(type, '# TYPE requests_total counter');
+			}
+			assert.strictEqual(value, 'requests_total 1');
+		});
+
 		function getMetric(name) {
 			name = name || 'test_metric';
 			return {

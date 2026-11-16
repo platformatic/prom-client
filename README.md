@@ -58,6 +58,7 @@ available on Linux.
 - `register` to which registry the metrics should be registered. Default: the global default registry.
 - `gcDurationBuckets` with custom buckets for GC duration histogram. Default buckets of GC duration histogram are `[0.001, 0.01, 0.1, 1, 2, 5]` (in seconds).
 - `eventLoopMonitoringPrecision` with sampling rate in milliseconds. Must be greater than zero. Default: 10.
+- `eventLoopMonitoringWindow` with the length, in milliseconds, of the window the event loop delay statistics (`nodejs_eventloop_lag_{min,max,mean,stddev,p50,p90,p99}_seconds`) are computed over. The reported values always cover between one and two windows of the most recent samples, and reading them never resets them, so multiple scrapers see consistent values. Set it to at least your scrape interval so no samples are missed. Default: 60000.
 
 To register metrics to another registry, pass it in as `register`:
 
@@ -504,6 +505,10 @@ If you need to get a reference to a previously registered metric, you can use
 
 You can remove all metrics by calling `register.clear()`. You can also remove a
 single metric by calling `register.removeSingleMetric(*name of metric*)`.
+
+Event loop monitoring timers and native histograms stop once all of the collector's
+metrics have been removed from every registry. Metrics shared with another registry,
+including through `Registry.merge()`, continue monitoring until removed there too.
 
 #### Resetting metrics
 
