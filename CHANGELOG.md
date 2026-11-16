@@ -61,6 +61,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 - fix: Skip Linux-only processOpenFileDescriptors test on non-Linux platforms
 - fix: Resolve linting errors in test files (regex escaping, JSDoc formatting)
 - fix: Resolve test failures after Jest to node:test migration (TypeError expectations, deepStrictEqual comparisons)
+- fix: Summary sliding window (`maxAgeSeconds`/`ageBuckets`) shared one t-digest across all buckets, so each observation was pushed `ageBuckets` times and older values were over-weighted until the window had fully rotated
 
 ### Added
 
