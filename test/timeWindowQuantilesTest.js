@@ -3,6 +3,7 @@
 const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert');
 const { timers } = require('./helpers');
+const { TDigest } = require('../lib/tdigest/tdigest');
 
 describe('timeWindowQuantiles', () => {
 	const TimeWindowQuantiles = require('../lib/timeWindowQuantiles');
@@ -23,7 +24,16 @@ describe('timeWindowQuantiles', () => {
 			instance.push(1);
 			instance.ringBuffer.forEach(td => {
 				assert.strictEqual(td.centroids.size, 1);
+				assert.strictEqual(td.n, 1);
 			});
+		});
+
+		it('should use a separate digest for each bucket', () => {
+			assert.strictEqual(new Set(instance.ringBuffer).size, 5);
+			assert.strictEqual(
+				new TimeWindowQuantiles(undefined, undefined).ringBuffer.length,
+				1,
+			);
 		});
 
 		it('#reset', () => {
@@ -80,6 +90,17 @@ describe('timeWindowQuantiles', () => {
 			instance.ringBuffer.forEach(td => {
 				assert.strictEqual(td.centroids.size, 0);
 			});
+		});
+
+		it('should weight values equally before the first full rotation', () => {
+			instance.push(10);
+			timers.advanceTimersByTime(1001);
+			instance.push(20);
+
+			const expected = new TDigest();
+			expected.push(10);
+			expected.push(20);
+			assert.strictEqual(instance.percentile(0.5), expected.percentile(0.5));
 		});
 	});
 });
