@@ -40,34 +40,38 @@ describeEach([
 		);
 	});
 
-	it('should not depend on previous reads', async () => {
+	it('should not depend on previous reads', async t => {
+		let cpuUsage = { user: 1000000, system: 2000000 };
+		t.mock.method(process, 'cpuUsage', (previous = { user: 0, system: 0 }) => {
+			return {
+				user: cpuUsage.user - previous.user,
+				system: cpuUsage.system - previous.system,
+			};
+		});
 		processCpuTotal();
-		burnCpu(50);
+		cpuUsage = { user: 1030000, system: 2020000 };
 		const first = totals(await register.getMetricsAsJSON());
-		assert.ok(first.process_cpu_seconds_total >= 0.02);
+		assert.deepStrictEqual(first, {
+			process_cpu_user_seconds_total: 0.03,
+			process_cpu_system_seconds_total: 0.02,
+			process_cpu_seconds_total: 0.05,
+		});
 
 		// Accumulating deltas between reads made the value after a reset depend
 		// on when the previous read happened.
 		register.resetMetrics();
 		const second = totals(await register.getMetricsAsJSON());
 
-		for (const name of Object.keys(first)) {
-			assert.ok(second[name] >= first[name], name);
-		}
-		assert.ok(
-			Math.abs(
-				second.process_cpu_seconds_total -
-					second.process_cpu_user_seconds_total -
-					second.process_cpu_system_seconds_total,
-			) < 1e-9,
-		);
+		assert.deepStrictEqual(second, first);
+
+		cpuUsage = { user: 1050000, system: 2030000 };
+		assert.deepStrictEqual(totals(await register.getMetricsAsJSON()), {
+			process_cpu_user_seconds_total: 0.05,
+			process_cpu_system_seconds_total: 0.03,
+			process_cpu_seconds_total: 0.08,
+		});
 	});
 });
-
-function burnCpu(ms) {
-	const end = Date.now() + ms;
-	while (Date.now() < end);
-}
 
 function totals(metrics) {
 	const result = {};
