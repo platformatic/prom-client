@@ -28,6 +28,8 @@ project adheres to [Semantic Versioning](http://semver.org/).
     output of other registries sharing the counter and of `getSingleMetricAsString()`.
   - `process_cpu_*_seconds_total` are computed from absolute CPU usage instead of accumulating
     deltas between reads.
+  - JSON exports apply registry default labels to copies of samples, so reading a metric in one
+    registry cannot change its labels in another registry.
 - Improve types for no labels
 - perf: Faster stats gathering with lower memory overhead
 - Simplified number format logic

@@ -893,6 +893,40 @@ summary_count 0
 			});
 		});
 
+		for (const Metric of [Counter, Gauge]) {
+			it(`should keep default labels local to each registry for ${Metric.name}`, async () => {
+				const other = new Registry(regType);
+				register.setDefaultLabels({ reader: 'first', region: 'default' });
+				other.setDefaultLabels({ reader: 'second' });
+				const metric = new Metric({
+					name: 'shared_metric',
+					help: 'Shared metric',
+					labelNames: ['region'],
+					registers: [register, other],
+				});
+				metric.inc({ region: 'explicit' }, 2);
+
+				const firstRead = await register.getMetricsAsJSON();
+				const secondRead = await other.getMetricsAsJSON();
+				assert.deepStrictEqual(firstRead[0].values[0].labels, {
+					region: 'explicit',
+					reader: 'first',
+				});
+				assert.deepStrictEqual(secondRead[0].values[0].labels, {
+					region: 'explicit',
+					reader: 'second',
+				});
+				assert.deepStrictEqual((await metric.get()).values[0].labels, {
+					region: 'explicit',
+				});
+
+				register.setDefaultLabels({ reader: 'updated' });
+				const updatedRead = await register.getMetricsAsJSON();
+				assert.strictEqual(updatedRead[0].values[0].labels.reader, 'updated');
+				assert.strictEqual(firstRead[0].values[0].labels.reader, 'first');
+			});
+		}
+
 		it('should not change counters or other registries when collecting', async () => {
 			const other = new Registry(
 				regType === Registry.OPENMETRICS_CONTENT_TYPE
