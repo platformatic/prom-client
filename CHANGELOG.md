@@ -66,6 +66,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - Expanded benchmarking code
+- ci: Publish releases from GitHub Actions with npm trusted publishing (OIDC) and provenance
 - feat: Vendor tdigest@0.1.1 and bintrees dependencies to eliminate external dependency on unmaintained packages
 - docs: Add CLAUDE.md for Claude Code guidance with comprehensive development commands and architecture overview
 
